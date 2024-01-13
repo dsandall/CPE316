@@ -11,76 +11,62 @@ int main(void)
 // turns on clock to GPIO banks A and C
 RCC->AHB2ENR |= (RCC_AHB2ENR_GPIOAEN | RCC_AHB2ENR_GPIOCEN);
 
-// bank A as GPIO mode
+// bank C as GPIO mode
 GPIOC->MODER &= ~(GPIO_MODER_MODE0);
 GPIOC->MODER &= ~(GPIO_MODER_MODE1);
 GPIOC->MODER &= ~(GPIO_MODER_MODE2);
-GPIOC->MODER &= ~(GPIO_MODER_MODE3);
-
-GPIOA->MODER &= ~(GPIO_MODER_MODE5);
-GPIOA->MODER |= (GPIO_MODER_MODE5_0);
 
 GPIOC->MODER |= (GPIO_MODER_MODE0_0);
 GPIOC->MODER |= (GPIO_MODER_MODE1_0);
 GPIOC->MODER |= (GPIO_MODER_MODE2_0);
-GPIOC->MODER |= (GPIO_MODER_MODE3_0);
 
-// bank C as GPIO mode
-//GPIOC->MODER &= ~(GPIO_MODER_MODE13);
-//GPIOC->PUPDR &= ~(GPIO_PUPDR_PUPD13);
-
+// bank A as GPIO mode
 GPIOA->MODER &= ~(GPIO_MODER_MODE4);
 GPIOA->PUPDR &= ~(GPIO_PUPDR_PUPD4);
 GPIOA->PUPDR |= (GPIO_PUPDR_PUPD4_0);
 
    while (1)
   {
-
 		   uint8_t i = 0;
 		   while (i < 8)
 		   {
-			   if (i & 1){
-				   GPIOC->ODR |= GPIO_PIN_0;
-			   } else{
-				   GPIOC->ODR &= ~GPIO_PIN_0;
-			   }
-
-			   if (i & 2) {
-				   GPIOC->ODR |= GPIO_PIN_1;
-			   } else{
-				   GPIOC->ODR &= ~GPIO_PIN_1;
-			   }
-
-			   if (i & 4){
-				   GPIOC->ODR |= GPIO_PIN_2;
-			   } else{
-				   GPIOC->ODR &= ~GPIO_PIN_2;
-			   }
-			   HAL_Delay(200);
-
-			   if (GPIOA->IDR & GPIO_PIN_4)
+			   if (i & 1)
 			   {
-				   i++;
+				   GPIOC->ODR |= GPIO_PIN_0;
 			   }
 			   else
 			   {
-				   i = i;
+				   GPIOC->ODR &= ~GPIO_PIN_0;
+			   }
+
+			   if (i & 2)
+			   {
+				   GPIOC->ODR |= GPIO_PIN_1;
+			   }
+			   else
+			   {
+				   GPIOC->ODR &= ~GPIO_PIN_1;
+			   }
+
+			   if (i & 4)
+			   {
+				   GPIOC->ODR |= GPIO_PIN_2;
+			   }
+			   else
+			   {
+				   GPIOC->ODR &= ~GPIO_PIN_2;
+			   }
+
+			   HAL_Delay(200);
+
+			   if (~(GPIOA->IDR) & GPIO_PIN_4)
+			   {
+				   i++;
 			   }
 		   }
-
-
   }
-
 }// end main
 
-void mydelay(int count)
-{
-	int i, j;
-	int x = 0;
-	for(i=0; i<count; i++)
-		for(j=0; j<1000; j++)  // need to tune this?
-			x = x + 1;
-}
 
 /**
   * @brief System Clock Configuration
