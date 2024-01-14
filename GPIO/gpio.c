@@ -75,3 +75,19 @@ void digitalWrite(char port, uint8_t pin, uint8_t value){	// port, pin, value
     }
 
 }
+
+
+int digitalRead(char port, uint32_t pin){	// port, pin
+    switch (port) {
+        case 'A':
+        	return (GPIOA->IDR & (1 << pin)) ? 1 : 0;
+        case 'B':
+        	return (GPIOB->IDR & (1 << pin)) ? 1 : 0;
+        case 'C':
+        	return (GPIOC->IDR & (1 << pin)) ? 1 : 0;
+        case 'D':
+        	return (GPIOD->IDR & (1 << pin)) ? 1 : 0;
+        default:
+        	return;
+    }
+}
