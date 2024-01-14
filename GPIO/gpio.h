@@ -29,4 +29,10 @@ void digitalWrite(char port, uint8_t pin, uint8_t value);
 
 
 
+#define PIN_R(port, pin, mode) \
+	do{	\
+	return ((port)->IDR & (1 << pin)) ? 1 : 0; \
+	}while(0)\
+
+
 #endif // GPIO_H
