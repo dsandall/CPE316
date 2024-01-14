@@ -91,3 +91,20 @@ int digitalRead(char port, uint32_t pin){	// port, pin
         	return;
     }
 }
+
+void pinPull(char port, uint32_t pin, uint32_t dir){	// port, pin, none/up/down  0/1/2
+    switch (port) {
+        case 'A':
+        	GPIOA->PUPDR &= ~(0x3 << (pin * 2));	// clear bits
+        	GPIOA->PUPDR |= (dir << (pin * 2)); 	// write pull direction
+        case 'B':
+        	GPIOB->PUPDR &= ~(0x3 << (pin * 2));	// clear bits
+			GPIOB->PUPDR |= (dir << (pin * 2)); 	// write pull direction
+        case 'C':
+        	GPIOC->PUPDR &= ~(0x3 << (pin * 2));	// clear bits
+			GPIOC->PUPDR |= (dir << (pin * 2)); 	// write pull direction
+        case 'D':
+        	GPIOD->PUPDR &= ~(0x3 << (pin * 2));	// clear bits
+			GPIOD->PUPDR |= (dir << (pin * 2)); 	// write pull direction
+    }
+}
