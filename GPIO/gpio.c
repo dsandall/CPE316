@@ -6,12 +6,8 @@
  * looking into multiline macros so that I can set and clear in one macro, like these functions
  *
  *
-
-#define PIN_MODE(port, pin, mode) \
-	port->MODER &= ~(0x3 << (pin * 2)))
-
-
 */
+
 
 void pinMode(char port, uint32_t pin, uint32_t mode){
 
@@ -48,6 +44,7 @@ void pinMode(char port, uint32_t pin, uint32_t mode){
     }
 
 }
+
 
 
 
