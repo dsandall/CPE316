@@ -19,6 +19,8 @@
 #include "main.h"
 #include <stdbool.h>
 #include "gpio.h"
+#include "keypad.h"
+#include "lcd.h"
 
 /* Private variables ---------------------------------------------------------*/
 UART_HandleTypeDef huart2;
@@ -67,13 +69,14 @@ int main(void)
 
 
 
-  uint8_t btn;
+  uint8_t btn = !(0);
   while (1)
   {
 	  if (keypad_pressed()){
 		  btn = scan_keypad();
 		  disp_LED(btn);
 		  LCD_command(id2char(btn), 1);
+		  HAL_Delay(200);
 	  }
   }
 

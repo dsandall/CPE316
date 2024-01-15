@@ -119,7 +119,7 @@ void disp_LED(uint8_t num){
 
 
 char id2char (uint8_t btn){
-	char chairs[] = {'1', '2', '3', 'A', '4', '5', '6', 'B', '7', '8', '9', 'C', '*', '#', 'D'};
+	char chairs[] = {'1', '2', '3', 'A', '4', '5', '6', 'B', '7', '8', '9', 'C', '*', '0', '#', 'D'};
 	return chairs[btn];
 }
 
