@@ -73,7 +73,7 @@ void digitalWrite(char port, uint8_t pin, uint8_t value){	// port, pin, value
 }
 
 
-int digitalRead(char port, uint32_t pin){	// port, pin
+uint8_t digitalRead(char port, uint32_t pin){	// port, pin
     switch (port) {
         case 'A':
         	return (GPIOA->IDR & (1 << pin)) ? 1 : 0;
@@ -83,6 +83,8 @@ int digitalRead(char port, uint32_t pin){	// port, pin
         	return (GPIOC->IDR & (1 << pin)) ? 1 : 0;
         case 'D':
         	return (GPIOD->IDR & (1 << pin)) ? 1 : 0;
+        default:
+        	return -1; //error
     }
 }
 
@@ -102,3 +104,17 @@ void pinPull(char port, uint32_t pin, uint32_t dir){	// port, pin, none/up/down 
 			GPIOD->PUPDR |= (dir << (pin * 2)); 	// write pull direction
     }
 }
+
+#pragma GCC push_options
+#pragma GCC optimize ("O0")
+//compile this function without optimizations
+
+void func_delay(uint8_t time){
+	for (int i = time; i>0;){
+		i--;
+	}
+	return;
+}
+
+#pragma GCC pop_options
+

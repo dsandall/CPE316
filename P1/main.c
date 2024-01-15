@@ -49,34 +49,22 @@ int main(void)
 
 
   setup_keypad();
+  setup_LCD();
 
+  uint8_t btn;
 
-
-  do{
-	  //LCD setup//
-
-	  //set up GPIO Banks for LCD
-	  GPIOA->MODER &= ~(0b1100001111); //clear mode for ports A0,1,4
-	  GPIOA->MODER |= 0b0100000101;	//set mode "01" (output) for ports A0,1,4
-
-	  GPIOB->MODER &= ~(0xFF); //clear mode for ports B0:3
-	  GPIOB->MODER |= 0x55; //set mode "01"(output) for ports B0:3
-
-	  LCD_init();
-
-  } while(0);
-
-
-
-
-  uint8_t btn = !(0);
   while (1)
   {
 	  if (keypad_pressed()){
 		  btn = scan_keypad();
 		  disp_LED(btn);
-		  LCD_command(id2char(btn), 1);
-		  HAL_Delay(200);
+		  if (id2char(btn) == '*'){
+			  LCD_command(0x01,0); //clear display
+		  }
+		  else{
+			  LCD_command(id2char(btn), 1);
+		  }
+		  HAL_Delay(300);
 	  }
   }
 
