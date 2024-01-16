@@ -15,7 +15,5 @@
 void LCD_init(void);
 void LCD_command(uint8_t command, uint8_t type);
 void LCD_write_string(const char* str);
-void setup_LCD(void);
-void LCD_write_line(const char* str);
 
 #endif

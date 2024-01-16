@@ -93,10 +93,28 @@ uint8_t scan_keypad(){
 }
 
 void disp_LED(uint8_t num){
-	  PIN_W(GPIOA, 5, (num & 1));
-	  PIN_W(GPIOA, 6, (num & 2));
-	  PIN_W(GPIOA, 7, (num & 4));
-	  PIN_W(GPIOA, 8, (num & 8));
+	  if (num & 1){
+		  PIN_W(GPIOA, 5, 1);
+	  } else {
+		  PIN_W(GPIOA, 5, 0);
+	  }
+	  if (num & 2){
+		  PIN_W(GPIOA, 6, 1);
+	  } else {
+		  PIN_W(GPIOA, 6, 0);
+	  }
+	  if (num & 4){
+		  PIN_W(GPIOA, 7, 1);
+	  } else {
+		  PIN_W(GPIOA, 7, 0);
+	  }
+	  if (num & 8){
+		  PIN_W(GPIOA, 8, 1);
+	  } else {
+		  PIN_W(GPIOA, 8, 0);
+	  }
+
+	  return;
 }
 
 

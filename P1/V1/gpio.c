@@ -113,7 +113,7 @@ void func_delay(uint8_t time){
 	for (int i = time; i>0;){
 		i--;
 	}
-//	HAL_Delay(10);
+	return;
 }
 
 #pragma GCC pop_options

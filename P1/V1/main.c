@@ -34,34 +34,6 @@ static void MX_USART2_UART_Init(void);
   * @brief  The application entry point.
   * @retval int
   */
-
-void dispLocked (){
-	LCD_command(0x01,0); //clear display
-	LCD_write_line("LOCKED");
-	LCD_write_string("Enter PIN: ");
-	disp_LED(0b0001);
-}
-
-void dispNewPIN (){
-	LCD_command(0x01,0); //clear display
-	LCD_write_line("Hello, Admin");
-	LCD_write_string("Enter PIN: ");
-	disp_LED(0b1110);
-}
-
-void dispUnlocked(){
-	LCD_command(0x01,0); //clear display
-	LCD_write_line("UNLOCKED");
-	LCD_write_string("*:lock   #:reset");
-	disp_LED(0b0011);
-}
-
-void dispBoom(){
-	LCD_command(0x01,0); //clear display and attempts
-	LCD_write_string("BOOM");
-	disp_LED(0b1111);
-}
-
 int main(void)
 {
   /* MCU Configuration--------------------------------------------------------*/
@@ -79,139 +51,24 @@ int main(void)
   setup_keypad();
   setup_LCD();
 
-  enum KeypadStates {
-      LOCKED,
-      UNLOCKED,
-      SELF_DESTRUCT,
-      NEW_PIN
-  };
-
-  enum KeypadStates currentState = LOCKED;
-
-
-  char PIN[] = {'1','2','3','4'};
-  char attempt[] = {'f','f','f','f'};
-
-  uint8_t curr_attempt = 0;
-
-
-
+  uint8_t btn;
 
   while (1)
   {
-
-
-
-
-
-	    // Simulate keypad behavior based on the current state
-
-	  switch (currentState) {
-
-	  	  case LOCKED:
-	        	//initialize Locked State
-	        	dispLocked();
-
-	        	while(1){
-				  if (keypad_pressed()){
-					  char charpressed = id2char(scan_keypad());
-
-					  if (charpressed == '*'){
-						  dispLocked();
-						  for (int i = 0; i < 4; i++) {attempt[i] = 'f';}
-						  curr_attempt = 0;
-					  }
-
-					  else{
-						  //record press and send to display
-						  LCD_command(charpressed, 1);
-						  attempt[curr_attempt++] = charpressed;
-
-						  //if they are done, goto next state
-						  if (curr_attempt >=4){
-							  //compare PINs and goto next state
-							  if (attempt[0] == PIN[0] && attempt[1] == PIN[1] && attempt[2] == PIN[2] && attempt[3] == PIN[3]){
-								  currentState = UNLOCKED;}
-							  else{currentState = SELF_DESTRUCT;}
-
-							  //clear attempts
-							  for (int i = 0; i < 4; i++) {attempt[i] = 'f';}
-							  curr_attempt = 0;
-
-							  break;
-						  }
-
-					  }
-				  }
-				  HAL_Delay(300); //wait a sec before registering another press
-	        	}
-	        break;
-
-
-	        //SELF_DESTRUCT
-	        case SELF_DESTRUCT:
-
-	        	dispBoom();
-	        	HAL_Delay(3000);
-
-	        	currentState = LOCKED;
-			break;
-
-
-			//UNLOCKED
-	        case UNLOCKED:
-
-	        	dispUnlocked();
-
-	        	while (1){
-	        		if(keypad_pressed()){
-	        			char charpressed = id2char(scan_keypad());
-
-	        			if (charpressed == '*'){
-	        				//lock display
-	        	        	currentState = LOCKED;
-	        	        	break;
-	        			}
-	        			else if (charpressed == '#'){
-	        				//change PIN
-	        				currentState = NEW_PIN;
-	        				break;
-	        			}
-	        		}
-	        		HAL_Delay(300); //wait a sec before registering another press
-	        	}
-
-
-			break;
-
-
-			//NEW_PIN
-	        case NEW_PIN:
-
-	        	dispNewPIN();
-
-	        	while(1){
-	        		if(keypad_pressed()){
-						  //record press and send to display
-						  char charpressed = id2char(scan_keypad());
-						  LCD_command(charpressed, 1);
-						  PIN[curr_attempt++] = charpressed;
-
-						  //if they are done, exit state
-						  if (curr_attempt >=4){
-							  curr_attempt = 0;
-							  currentState = UNLOCKED;
-							  break;
-							  //also turn off LED
-						  }
-	        		}
-	        		HAL_Delay(300); //wait a sec before registering another press
-	        	}
-			break;
-
-	    }
-
+	  if (keypad_pressed()){
+		  btn = scan_keypad();
+		  disp_LED(btn);
+		  if (id2char(btn) == '*'){
+			  LCD_command(0x01,0); //clear display
+		  }
+		  else{
+			  LCD_command(id2char(btn), 1);
+		  }
+		  HAL_Delay(300);
+	  }
   }
+
+
 }
 
 

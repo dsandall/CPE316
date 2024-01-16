@@ -64,28 +64,28 @@ void LCD_init(void){
 	const int CLEAR = 0x01;
 
 	LCD_command(WAKEY, 0);
-	HAL_Delay(3);
+	func_delay(1);
 
 	LCD_command(WAKEY, 0);
-	HAL_Delay(3);
+	func_delay(1);
 
 	LCD_command(WAKEY, 0);
-	HAL_Delay(3);
+	func_delay(1);
 
 	LCD_command(SHOW_DISP, 0);
-	HAL_Delay(3);
+	func_delay(1);
 
 	LCD_command(MV_CRSR, 0);
-	HAL_Delay(3);
+	func_delay(1);
 
 	LCD_command(CLEAR, 0);
-	HAL_Delay(3);
+	func_delay(1);
 
 	LCD_command(CLEAR, 0);
-	HAL_Delay(3);
+	func_delay(1);
 
 	LCD_command(CLEAR, 0);
-	HAL_Delay(3);
+	func_delay(1);
 
 
 	return;
@@ -101,70 +101,60 @@ void LCD_command(uint8_t command, uint8_t type){
 	PIN_W(RS_PORT, RS, (0b1 & type));
 	PIN_W(RW_PORT, RW, 0);
 
-	HAL_Delay(1);//min 100ns delay before enable after RS/RW (t AS)
+	//min 100ns delay
+	func_delay(1);
 
-
-	PIN_W(EN_PORT, EN, 1); //enable goes high for at least 300 ns (t whe)
+	//enable goes high
+	PIN_W(EN_PORT, EN, 1);
 	//first 4 bits
 	PIN_W(DB_PORT, DB7, (command >> 7)&0b1);
 	PIN_W(DB_PORT, DB6, (command >> 6)&0b1);
 	PIN_W(DB_PORT, DB5, (command >> 5)&0b1);
 	PIN_W(DB_PORT, DB4, (command >> 4)&0b1);
-	HAL_Delay(1); // wait at least 100 ns after setting data before raising en (t ds)
+	func_delay(1);
 
+	PIN_W(EN_PORT, EN, 0);
+	func_delay(1);
 
-	PIN_W(EN_PORT, EN, 0); // dont change data for next 10 ns (t dhw)
-	HAL_Delay(1);
-
-	PIN_W(EN_PORT, EN, 1); //enable goes high for at least 300 ns (t whe)
+	PIN_W(EN_PORT, EN, 1);
 	//next 4 bits
 	PIN_W(DB_PORT, DB7, (command >> 3)&0b1);
 	PIN_W(DB_PORT, DB6, (command >> 2)&0b1);
 	PIN_W(DB_PORT, DB5, (command >> 1)&0b1);
 	PIN_W(DB_PORT, DB4, (command >> 0)&0b1);
-	HAL_Delay(1); // wait at least 100 ns after setting data before raising en (t ds)
+	func_delay(1);
 
-	PIN_W(EN_PORT, EN, 0); // dont change data for next 10 ns (t dhw)
-	HAL_Delay(1);
+	PIN_W(EN_PORT, EN, 0);
+	func_delay(1);
 
 
 	//change to BF clear mode
 	//this should probably actually read BF, but let's just assume the display receives our commands
 	PIN_W(RS_PORT, RS, 0);
 	PIN_W(RW_PORT, RW, 1);
-	HAL_Delay(1);
+	func_delay(1);
 
 	PIN_W(EN_PORT, EN, 1);
-	HAL_Delay(1);
-
+	func_delay(1);
 
 	PIN_W(EN_PORT, EN, 0);
-	HAL_Delay(1);
+	func_delay(1);
 
 	PIN_W(EN_PORT, EN, 1);
-	HAL_Delay(1);
+	func_delay(1);
 
 	PIN_W(EN_PORT, EN, 0);
-	HAL_Delay(1);
+	func_delay(1);
 
 	return;
 }
 
 void LCD_write_string(const char* str) {
-	for (int i = 0; str[i] != '\0'; i++) {
-		LCD_command(str[i], 1);
+   for (int i = 0; str[i] != '\0'; i++) {
+		  LCD_command(str[i], 1);
 	}
 }
 
-void LCD_write_line(const char* str) {
-	int i = 0;
-	for (; str[i] != '\0'; i++) {
-		LCD_command(str[i], 1);
-	}
-	for (; i<40; i++){
-		LCD_command(0xFE, 1);
-	}
-}
 
 
 
