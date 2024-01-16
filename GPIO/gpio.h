@@ -10,6 +10,9 @@
 
 void pinMode(char port, uint32_t pin, uint32_t mode);
 void digitalWrite(char port, uint8_t pin, uint8_t value);
+uint8_t digitalRead(char port, uint32_t pin);
+void pinPull(char port, uint32_t pin, uint32_t dir);
+void func_delay(uint8_t time);
 
 
 
