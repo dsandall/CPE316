@@ -102,10 +102,9 @@ int main(void)
   /* USER CODE BEGIN 2 */
 
 	double sin_values[360];
-	int degree;
 
 	// Precompute sin values for each degree
-	for (degree = 0; degree < 360; degree++) {
+	for (int degree = 0; degree < 360; degree++) {
 	  sin_values[degree] = sin(degree * M_PI / 180.0); // Convert degree to radian
 	}
 
@@ -117,7 +116,7 @@ int main(void)
 	char wave = '6';
 	char com = 0;
 	uint16_t voltage = 0;
-	int delay = 700;
+	int delay = 650;
 	int freq = 100;
 	int duty_cycle = 50; // percent
 	int samp_per_cycle = SPS / freq;
@@ -126,6 +125,7 @@ int main(void)
 	float triangle_increment = 3000 / samp_per_cycle * 2;
 
 	int samp_val = 0;
+	int angle = 0;
 
 
   /* USER CODE END 2 */
@@ -136,7 +136,7 @@ int main(void)
   {
     /* USER CODE END WHILE */
 
-	  if (samp_val == samp_per_cycle){
+	  if (samp_val >= samp_per_cycle){
 		  samp_val = 0;
 	  }
 
@@ -144,7 +144,9 @@ int main(void)
 		  val = id2char(scan_keypad());
 		  if(val == '6' || val == '7' || val == '8' || val == '9'){
 			  wave = val;
-		  } else{
+		  }
+		  else if(val == '1' || val == '2' || val == '3' || val == '4' || val == '5' || val == '*' || val == '0' || val == '#'){
+			  while(keypad_pressed());
 			  com = val;
 			  switch(com){
 			  	  	  case '1': // 100Hz
@@ -185,24 +187,26 @@ int main(void)
 	  switch(wave){
 			case '6': // square
 				if (samp_val < (samp_per_cycle * (0.01 * duty_cycle))){
-				voltage = 3000;
+					voltage = 3000;
 				}
 				else {
-				voltage = 0;
+					voltage = 0;
 				}
 				break;
 			case '7': // sin
-				voltage = (1500 * sin_values[(int)(sin_increment * samp_val)]) + 1500;
+				angle = round(sin_increment * samp_val);
+				if(angle >= 360){angle = 359;}
+				voltage = (1500 * sin_values[angle]) + 1500;
 				break;
 			case '8': // ramp
 				voltage = (ramp_increment * samp_val);
 				break;
 			case '9': // triangle
 				if (samp_val < (samp_per_cycle / 2)){
-				voltage = (triangle_increment * samp_val);
+					voltage = (triangle_increment * samp_val);
 				}
 				else {
-				voltage = 3000 - (triangle_increment * (samp_val - (samp_per_cycle / 2)));
+					voltage = 3000 - (triangle_increment * (samp_val - (samp_per_cycle / 2)));
 				}
 				break;
 	        default:
@@ -215,6 +219,13 @@ int main(void)
 	  DAC_write(DAC_volt_conv(voltage));
 	  samp_val++;
 	  for(int i = 0; i < delay; i++);
+
+
+	  // if(keypad_pressed()){
+		 //  val = scan_keypad();
+		 //  disp_LED(val);
+	  // }
+
 
 
 
