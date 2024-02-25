@@ -1,144 +1,88 @@
-/* USER CODE BEGIN Header */
-/**
-  ******************************************************************************
-  * @file           : main.c
-  * @brief          : Main program body
-  ******************************************************************************
-  * @attention
-  *
-  * Copyright (c) 2024 STMicroelectronics.
-  * All rights reserved.
-  *
-  * This software is licensed under terms that can be found in the LICENSE file
-  * in the root directory of this software component.
-  * If no LICENSE file comes with this software, it is provided AS-IS.
-  *
-  ******************************************************************************
-  */
-/* USER CODE END Header */
-/* Includes ------------------------------------------------------------------*/
+
 #include "main.h"
 #include "dac.h"
 #include "gpio.h"
 #include "keypad.h"
+#include "timer.h"
 #include <math.h>
 
 #define SPS 10000
+#define SIN_ACC 100
 
-
-/* Private includes ----------------------------------------------------------*/
-/* USER CODE BEGIN Includes */
-
-/* USER CODE END Includes */
-
-/* Private typedef -----------------------------------------------------------*/
-/* USER CODE BEGIN PTD */
-
-/* USER CODE END PTD */
-
-/* Private define ------------------------------------------------------------*/
-/* USER CODE BEGIN PD */
-
-/* USER CODE END PD */
-
-/* Private macro -------------------------------------------------------------*/
-/* USER CODE BEGIN PM */
-
-/* USER CODE END PM */
-
-/* Private variables ---------------------------------------------------------*/
 SPI_HandleTypeDef hspi2;
-
 UART_HandleTypeDef huart2;
 
-/* USER CODE BEGIN PV */
-
-/* USER CODE END PV */
-
-/* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
 static void MX_GPIO_Init(void);
 static void MX_USART2_UART_Init(void);
 static void MX_SPI2_Init(void);
-/* USER CODE BEGIN PFP */
 
-/* USER CODE END PFP */
+char val = 0;
+char wave = '7';
+char com = 0;
+uint16_t voltage = 0;
+int delay = 650;
+int freq = 100;
+int duty_cycle = 50; // percent
+int samp_per_cycle = SPS / 100;
+float sin_increment = 360 / (SPS / 100);
+float ramp_increment = 3000 / (SPS / 100);
+float triangle_increment = 3000 / (SPS / 100) * 2;
 
-/* Private user code ---------------------------------------------------------*/
-/* USER CODE BEGIN 0 */
+int samp_val = 0;
+volatile int inc_samp_val = 0;
+int angle = 0;
 
-/* USER CODE END 0 */
+double sin_values[SIN_ACC];
+void build_sin_table(){
+	// Precompute sin values for each degree
+	for (int degree = 0; degree < SIN_ACC; degree++) {
+	  sin_values[degree] = sin(degree * M_PI / (float)(SIN_ACC/2)); // Convert degree to radian
+	}
+}
 
-/**
-  * @brief  The application entry point.
-  * @retval int
-  */
+void TIM2_IRQHandler(void);
+
+
 int main(void)
 {
-  /* USER CODE BEGIN 1 */
 
-  /* USER CODE END 1 */
-
-  /* MCU Configuration--------------------------------------------------------*/
-
-  /* Reset of all peripherals, Initializes the Flash interface and the Systick. */
   HAL_Init();
-
-  /* USER CODE BEGIN Init */
-
-  /* USER CODE END Init */
-
-  /* Configure the system clock */
   SystemClock_Config();
-
-  /* USER CODE BEGIN SysInit */
-
-  /* USER CODE END SysInit */
-
-  /* Initialize all configured peripherals */
   MX_GPIO_Init();
-  MX_USART2_UART_Init();
   MX_SPI2_Init();
-  /* USER CODE BEGIN 2 */
 
-	double sin_values[360];
 
-	// Precompute sin values for each degree
-	for (int degree = 0; degree < 360; degree++) {
-	  sin_values[degree] = sin(degree * M_PI / 180.0); // Convert degree to radian
-	}
+  TimerInit();
+  TimerInterrupt();
+  // Enable GPIOA clock
+  RCC->AHB2ENR |= RCC_AHB2ENR_GPIOAEN;
+  //enable pin A5 output
+  GPIOA->MODER &= ~(0b11 << 15*2);
+  GPIOA->MODER |= (0b01 << 15*2);
+
+
+
+
+
 
 	DAC_init();
   	setup_keypad();
 
-
-	char val = 0;
-	char wave = '6';
-	char com = 0;
-	uint16_t voltage = 0;
-	int delay = 650;
-	int freq = 100;
-	int duty_cycle = 50; // percent
-	int samp_per_cycle = SPS / freq;
-	float sin_increment = 360 / samp_per_cycle;
-	float ramp_increment = 3000 / samp_per_cycle;
-	float triangle_increment = 3000 / samp_per_cycle * 2;
-
-	int samp_val = 0;
-	int angle = 0;
+  	build_sin_table();
 
 
-  /* USER CODE END 2 */
+  samp_per_cycle = SPS / freq;
+  sin_increment = SIN_ACC / samp_per_cycle;
+  ramp_increment = 3000 / samp_per_cycle;
+  triangle_increment = 3000 / samp_per_cycle * 2;
+
+
+
 
   /* Infinite loop */
-  /* USER CODE BEGIN WHILE */
   while (1)
   {
-    /* USER CODE END WHILE */
-
-	  if (samp_val >= samp_per_cycle){
-		  samp_val = 0;
-	  }
 
 	  if(keypad_pressed()){
 		  val = id2char(scan_keypad());
@@ -177,48 +121,61 @@ int main(void)
 							  freq = 100;
 							  duty_cycle = 50;
 			  }
+
 			  samp_per_cycle = SPS / freq;
-			  sin_increment = 360 / samp_per_cycle;
+			  sin_increment = SIN_ACC / samp_per_cycle;
 			  ramp_increment = 3000 / samp_per_cycle;
 			  triangle_increment = 3000 / samp_per_cycle * 2;
 		  }
 	  }
 
-	  switch(wave){
-			case '6': // square
-				if (samp_val < (samp_per_cycle * (0.01 * duty_cycle))){
-					voltage = 3000;
-				}
-				else {
-					voltage = 0;
-				}
-				break;
-			case '7': // sin
-				angle = round(sin_increment * samp_val);
-				if(angle >= 360){angle = 359;}
-				voltage = (1500 * sin_values[angle]) + 1500;
-				break;
-			case '8': // ramp
-				voltage = (ramp_increment * samp_val);
-				break;
-			case '9': // triangle
-				if (samp_val < (samp_per_cycle / 2)){
-					voltage = (triangle_increment * samp_val);
-				}
-				else {
-					voltage = 3000 - (triangle_increment * (samp_val - (samp_per_cycle / 2)));
-				}
-				break;
-	        default:
-	       	    voltage = 0;
-	  }
+	  if (inc_samp_val) {samp_val++; inc_samp_val = 0;}
+
+      do_DAC();
 
 
 
-
-	  DAC_write(DAC_volt_conv(voltage));
-	  samp_val++;
-	  for(int i = 0; i < delay; i++);
+//	  switch(wave){
+//			case '6': // square
+//				if (samp_val < (samp_per_cycle * (0.01 * duty_cycle))){
+//					voltage = 3000;
+//				}
+//				else {
+//					voltage = 0;
+//				}
+//				break;
+//			case '7': // sin
+//				angle = round(sin_increment * samp_val);
+//				if(angle >= 360){angle = 359;}
+//				voltage = (1500 * sin_values[angle]) + 1500;
+//				break;
+//			case '8': // ramp
+//				voltage = (ramp_increment * samp_val);
+//				break;
+//			case '9': // triangle
+//				if (samp_val < (samp_per_cycle / 2)){
+//					voltage = (triangle_increment * samp_val);
+//				}
+//				else {
+//					voltage = 3000 - (triangle_increment * (samp_val - (samp_per_cycle / 2)));
+//				}
+//				break;
+//	        default:
+//	       	    voltage = 0;
+//	  }
+//
+//
+//	  //Relocated logic with other logic
+//	  if (samp_val >= samp_per_cycle){
+//		  samp_val = 0;
+//	  }
+//
+//
+//	  DAC_write(DAC_volt_conv(voltage));
+//	  samp_val++;
+//
+//
+//	  for(int i = 0; i < delay; i++);
 
 
 	  // if(keypad_pressed()){
@@ -246,10 +203,76 @@ int main(void)
 
 
 
-    /* USER CODE BEGIN 3 */
   }
-  /* USER CODE END 3 */
 }
+
+
+void do_DAC(){
+	  switch(wave){
+			case '6': // square
+				if (samp_val < (samp_per_cycle * (0.01 * duty_cycle))){
+					voltage = 3000;
+				}
+				else {
+					voltage = 0;
+				}
+				break;
+			case '7': // sin
+				angle = round(sin_increment * samp_val);
+				if(angle >= SIN_ACC){angle = (SIN_ACC-1);}
+				voltage = (1500 * sin_values[angle]) + 1500;
+				break;
+			case '8': // ramp
+				voltage = (ramp_increment * samp_val);
+				break;
+			case '9': // triangle
+				if (samp_val < (samp_per_cycle / 2)){
+					voltage = (triangle_increment * samp_val);
+				}
+				else {
+					voltage = 3000 - (triangle_increment * (samp_val - (samp_per_cycle / 2)));
+				}
+				break;
+	        default:
+	       	    voltage = 0;
+	  }
+
+
+	  //Relocated logic with other logic
+	  if (samp_val >= samp_per_cycle){
+		  samp_val = 0;
+	  }
+
+
+}
+
+
+
+
+volatile int toggle = 1; //volatile for global variables used by interrupts!
+void TIM2_IRQHandler(void) {
+	if (TIM2->SR & TIM_SR_UIF) {TIM2->SR &= ~TIM_SR_UIF;}
+	// Clear update interrupt flag (receive interrupt, prevents multiple triggers)
+
+	if (toggle){GPIOA->BSRR = 1<<15; toggle = 0;}
+	else {GPIOA->BRR = 1<<15; toggle = 1;}
+
+//	PIN_W(GPIOA, 5, toggle);
+//	PIN_W(GPIOA, 6, toggle);
+//	PIN_W(GPIOA, 7, toggle);
+//	PIN_W(GPIOA, 8, toggle);
+
+
+	DAC_write(DAC_volt_conv(voltage));
+	inc_samp_val = 1;
+}
+
+
+
+
+
+
+
 
 /**
   * @brief System Clock Configuration
