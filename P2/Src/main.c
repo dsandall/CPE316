@@ -1,181 +1,462 @@
+
 #include "main.h"
+#include "dac.h"
+#include "gpio.h"
+#include "keypad.h"
+#include "timer.h"
+#include <math.h>
 
+#define SPS 10000
+#define SIN_ACC 100
 
-void I2C1_EV_IRQHandler(void){
-	//page 1297, figure 406 (assumes N<=255)
+SPI_HandleTypeDef hspi2;
+UART_HandleTypeDef huart2;
 
-	  while (1)
-	  {
-		  GPIOA->BSRR = (1<<5);
-		  HAL_Delay(100);
-		  GPIOA->BRR = (1<<5);
-		  HAL_Delay(100);
-	  }
+void SystemClock_Config(void);
+static void MX_GPIO_Init(void);
+static void MX_USART2_UART_Init(void);
+static void MX_SPI2_Init(void);
 
+char val = 0;
+char wave = '7';
+char com = 0;
+uint16_t voltage = 0;
+int delay = 650;
+int freq = 100;
+int duty_cycle = 50; // percent
+int samp_per_cycle = SPS / 100;
+float sin_increment = 360 / (SPS / 100);
+float ramp_increment = 3000 / (SPS / 100);
+float triangle_increment = 3000 / (SPS / 100) * 2;
 
-	if(I2C1->ISR & I2C_ISR_NACKF){
-		//NACK condition
+int samp_val = 0;
+volatile int inc_samp_val = 0;
+int angle = 0;
 
-//		  while (1)
-//		  {
-//			  GPIOA->BSRR = (1<<5);
-//			  HAL_Delay(200);
-//			  GPIOA->BRR = (1<<5);
-//			  HAL_Delay(200);
-//		  }
-
-	}
-	else if (I2C1->ISR & I2C_ISR_TXIS){
-		//Byte successfully transferred condition
-
-
-		//write more bytes
-
-
+double sin_values[SIN_ACC];
+void build_sin_table(){
+	// Precompute sin values for each degree
+	for (int degree = 0; degree < SIN_ACC; degree++) {
+	  sin_values[degree] = sin(degree * M_PI / (float)(SIN_ACC/2)); // Convert degree to radian
 	}
 }
+
+void TIM2_IRQHandler(void);
 
 
 int main(void)
 {
+
   HAL_Init();
-
-  // Enable MCO, select MSI (4 MHz source)
-  //RCC->CFGR = ((RCC->CFGR & ~(RCC_CFGR_MCOSEL)) | (RCC_CFGR_MCOSEL_0));
-
-//  //Change MSI to 48MHz mode (blazing fast overclock!!!)
-//  RCC->CR &= ~(RCC_CR_MSIRANGE);
-//  RCC->CR |= (0b1011 << 4);
+  SystemClock_Config();
+  MX_GPIO_Init();
+  MX_SPI2_Init();
 
 
-  // Enable pin A5 for debug
+  TimerInit();
+  TimerInterrupt();
+  // Enable GPIOA clock
   RCC->AHB2ENR |= RCC_AHB2ENR_GPIOAEN;
-  GPIOA->MODER &= ~(0x3 << 5*2);
-  GPIOA->MODER |= (0x1 << 5*2);
-
-
-
-////////I2C Stuffs:
-  //enable I2C peripheral clock
-  RCC->APB1ENR1 |= RCC_APB1ENR1_I2C1EN;
-
-  // Enable GPIOB clock, set PB6 and 7 to alternate func
-  RCC->AHB2ENR |= RCC_AHB2ENR_GPIOBEN;
-  GPIOB->AFR[0] &= ~(GPIO_AFRL_AFSEL6_Pos | GPIO_AFRL_AFSEL7_Pos); //Clear AF select reg
-  GPIOB->AFR[0] |= (4 << GPIO_AFRL_AFSEL6_Pos)|(4 << GPIO_AFRL_AFSEL7_Pos); //AF select to AF4 for pins B6 and B7
-  GPIOB->MODER &= ~((0x3 << 6*2)|(0x3 << 7*2)); //set to AF mode
-  GPIOB->MODER |= (0x2 << 6*2)|(0x2 << 7*2); //set to AF mode
-
-
-//I2C->CR1
-  I2C1->CR1 &= ~I2C_CR1_PE; //disable I2C for configuration
-
-  //noise filter configuration cannot be done after enabling I2C
-  I2C1->CR1 &= ~I2C_CR1_ANFOFF; //disable the analog filter disabler (enable analog filter)
-  I2C1->CR1 &= ~I2C_CR1_DNF; //disable the digital filter
-
-  I2C1->CR1 &= ~I2C_CR1_NOSTRETCH; //enable clock stretching (required for master mode)
-
-  I2C1->CR1 |= I2C_CR1_TXIE | I2C_CR1_NACKIE; //enable interrupt on TXIS and NACK events
-
-  NVIC->ISER[I2C1_EV_IRQn / 32] = (1 << (I2C1_EV_IRQn % 32)); //enable NVIC register
-
-  //other CR1 options include numerous interrupts, noise filters, DMA options, automatic NACK for slave mode, and packet error check bit
-
-
-//I2C->OAR1
-//  I2C1->OAR1 |= I2C_OAR1_OA1EN; //enable Master ADDR 1
-//
-//  I2C1->OAR1 &= ~(I2C_OAR1_OA1MODE); //set to 7 bit mode
-//
-//  const uint8_t masterAddress = 0x1F; // 7 or 10 bit address
-//  I2C1->OAR1 &= ~(I2C_OAR1_OA1); //clear master address
-//  I2C1->OAR1 |=  (masterAddress); //set  Master ADDR 1
-
-  //I2C_OAR2 is like OAR1, but with some limitations and strengths
-  //it only supports 7 bit addresses, but you can choose to only compare the upper bits
-  //this allows for many master addresses, where each slave device writes to it's own master address
-  //effectively giving you virtual addresses that identify where the data came from
-  //neat!
-
-
-//tweak I2C->TIMINGR register
-  /////Register MUST be changed before enabling I2C module
-  //PRESC, SCLDEL, SDADEL (data setup and hold timing) (page 1277)
-  //SCLH, SCLL (master clock config)(page 1292) (also has formula for master clock period)
-
-  //values taken from page 1304 of the reference manual, with configs for common clock speeds
-//  //these assume a 48MHz master clock speed, and operate in standard mode (100khz)
-//
-//  I2C1->TIMINGR |= (0xB << 28); //set PRESC
-//  I2C1->TIMINGR |= (0x13 << 0); //set SCLL
-//  I2C1->TIMINGR |= (0xF << 8); //set SCLH
-//  I2C1->TIMINGR |= (0x2 << 16); //set SDADEL
-//  I2C1->TIMINGR |= (0x4 << 20); //SCLDEL
-
-  I2C1->TIMINGR &= ~(0xFFFFFFFF);
-  I2C1->TIMINGR |= 0x00000E14; //(values from configuration tool)
-
-
-//I2C->TIMEOUTR (timeout config)
-
-
-
-
-//I2C->CR1 (again)
-  I2C1->CR1 |= I2C_CR1_PE; //enable I2C (disabling performs software reset, section 39.4.6)
-
-//I2C->PECR (Error checking)
-//I2C->ISR, I2C->ICR (interrupts)
-
-
-//I2C->CR2
-  //I2C->CR2 &= ~(ADD10); // disable 10 bit mode (this is default)
-
-//  const uint32_t slaveAddress = 0b0001010001; // 7 or 10 bit address to send data from STM to slave
-  const uint32_t slaveAddress = 0b1010001; // 7 or 10 bit address to send data from STM to slave
-
-  I2C1->CR2 &= ~(I2C_CR2_SADD);
-  I2C1->CR2 |= (slaveAddress << 1);  //set slave address in I2C_CR2, shifted by 1 bit because B[0] isn't used
-
-  //CR2 also includes START, STOP, NACK bits (cleared by hardware)
-  //CR2 includes AUTOEND, RELOAD, and NBYTES (automatic stop/reload after NBYTES)
-  //CR2 includes transfer direction RD_WRN
-
-
-
-
-//I2C->RXDR, I2C->TXDR (ODR,IDR)
-  //39.4.7 : Data Transfer
-
-  //write to I2C operation
-  I2C1->CR2 &= ~(I2C_CR2_RD_WRN); //set to 0 for write to I2C slave
-  //in case of 10 bit address mode: need HEAD10R bit
-
-  uint8_t nbytes = 1; // number of actual data bytes planned to send
-  I2C1->CR2 &= ~(I2C_CR2_NBYTES);
-  I2C1->CR2 |= (nbytes << 16);
-
-  uint8_t TXData = 0xAE;
-  I2C1->TXDR = TXData;
-
-
-  GPIOA->BRR = (1<<5); //tst
-
-  I2C1->CR2 |= I2C_CR2_START; //initialize start condition
+  //enable pin A5 output
+  GPIOA->MODER &= ~(0b11 << 15*2);
+  GPIOA->MODER |= (0b01 << 15*2);
 
 
 
 
 
+
+	DAC_init();
+  	setup_keypad();
+
+  	build_sin_table();
+
+
+  samp_per_cycle = SPS / freq;
+  sin_increment = SIN_ACC / samp_per_cycle;
+  ramp_increment = 3000 / samp_per_cycle;
+  triangle_increment = 3000 / samp_per_cycle * 2;
+
+
+
+
+  /* Infinite loop */
   while (1)
   {
-//	  GPIOA->BSRR = (1<<5);
-//	  HAL_Delay(1000);
-//	  GPIOA->BRR = (1<<5);
-//	  HAL_Delay(1000);
-	  HAL_Delay(10000);
-	  I2C1->CR2 |= I2C_CR2_START; //initialize start condition
+
+	  if(keypad_pressed()){
+		  val = id2char(scan_keypad());
+		  if(val == '6' || val == '7' || val == '8' || val == '9'){
+			  wave = val;
+		  }
+		  else if(val == '1' || val == '2' || val == '3' || val == '4' || val == '5' || val == '*' || val == '0' || val == '#'){
+			  while(keypad_pressed());
+			  com = val;
+			  switch(com){
+			  	  	  case '1': // 100Hz
+			  	  		  	  freq = 100;
+			  	              break;
+			  	  	  case '2': // 200Hz
+			  	  		  	  freq = 200;
+			  	  		  	  break;
+			  	  	  case '3': // 300Hz
+			  	  		  	  freq = 300;
+			   	  		  	  break;
+			  	      case '4': // 400Hz
+			  	    	  	  freq = 400;
+			  	  	  	  	  break;
+			  	      case '5': // 500Hz
+			  	    	  	  freq = 500;
+			  		  	  	  break;
+			          case '*': // decrease duty cycle
+			        	  	  if(duty_cycle > 10){duty_cycle = duty_cycle - 10;}
+							  break;
+			          case '0': // reset duty cycle
+			        	  	  duty_cycle = 50;
+							  break;
+			          case '#': // increase duty cycle
+			        	      if(duty_cycle < 90){duty_cycle = duty_cycle + 10;}
+							  break;
+			          default:
+							  freq = 100;
+							  duty_cycle = 50;
+			  }
+
+			  samp_per_cycle = SPS / freq;
+			  sin_increment = SIN_ACC / samp_per_cycle;
+			  ramp_increment = 3000 / samp_per_cycle;
+			  triangle_increment = 3000 / samp_per_cycle * 2;
+		  }
+	  }
+
+	  if (inc_samp_val) {samp_val++; inc_samp_val = 0;}
+
+      do_DAC();
+
+
+
+//	  switch(wave){
+//			case '6': // square
+//				if (samp_val < (samp_per_cycle * (0.01 * duty_cycle))){
+//					voltage = 3000;
+//				}
+//				else {
+//					voltage = 0;
+//				}
+//				break;
+//			case '7': // sin
+//				angle = round(sin_increment * samp_val);
+//				if(angle >= 360){angle = 359;}
+//				voltage = (1500 * sin_values[angle]) + 1500;
+//				break;
+//			case '8': // ramp
+//				voltage = (ramp_increment * samp_val);
+//				break;
+//			case '9': // triangle
+//				if (samp_val < (samp_per_cycle / 2)){
+//					voltage = (triangle_increment * samp_val);
+//				}
+//				else {
+//					voltage = 3000 - (triangle_increment * (samp_val - (samp_per_cycle / 2)));
+//				}
+//				break;
+//	        default:
+//	       	    voltage = 0;
+//	  }
+//
+//
+//	  //Relocated logic with other logic
+//	  if (samp_val >= samp_per_cycle){
+//		  samp_val = 0;
+//	  }
+//
+//
+//	  DAC_write(DAC_volt_conv(voltage));
+//	  samp_val++;
+//
+//
+//	  for(int i = 0; i < delay; i++);
+
+
+	  // if(keypad_pressed()){
+		 //  val = scan_keypad();
+		 //  disp_LED(val);
+	  // }
+
+
+
+
+
+//	  DAC_write(voltage);
+//	  disp_LED(val);
+//
+//	  DAC_write(voltage);
+
+//	  DAC_write(0x000);
+//	  HAL_Delay(1);
+//	  for(int i = 0; i < delay; i++);
+//	  DAC_write(0xFFF);
+//	  HAL_Delay(1);
+//	  for(int i = 0; i < delay; i++);
+
+
+
+
 
   }
 }
+
+
+void do_DAC(){
+	  switch(wave){
+			case '6': // square
+				if (samp_val < (samp_per_cycle * (0.01 * duty_cycle))){
+					voltage = 3000;
+				}
+				else {
+					voltage = 0;
+				}
+				break;
+			case '7': // sin
+				angle = round(sin_increment * samp_val);
+				if(angle >= SIN_ACC){angle = (SIN_ACC-1);}
+				voltage = (1500 * sin_values[angle]) + 1500;
+				break;
+			case '8': // ramp
+				voltage = (ramp_increment * samp_val);
+				break;
+			case '9': // triangle
+				if (samp_val < (samp_per_cycle / 2)){
+					voltage = (triangle_increment * samp_val);
+				}
+				else {
+					voltage = 3000 - (triangle_increment * (samp_val - (samp_per_cycle / 2)));
+				}
+				break;
+	        default:
+	       	    voltage = 0;
+	  }
+
+
+	  //Relocated logic with other logic
+	  if (samp_val >= samp_per_cycle){
+		  samp_val = 0;
+	  }
+
+
+}
+
+
+
+
+volatile int toggle = 1; //volatile for global variables used by interrupts!
+void TIM2_IRQHandler(void) {
+	if (TIM2->SR & TIM_SR_UIF) {TIM2->SR &= ~TIM_SR_UIF;}
+	// Clear update interrupt flag (receive interrupt, prevents multiple triggers)
+
+	if (toggle){GPIOA->BSRR = 1<<15; toggle = 0;}
+	else {GPIOA->BRR = 1<<15; toggle = 1;}
+
+//	PIN_W(GPIOA, 5, toggle);
+//	PIN_W(GPIOA, 6, toggle);
+//	PIN_W(GPIOA, 7, toggle);
+//	PIN_W(GPIOA, 8, toggle);
+
+
+	DAC_write(DAC_volt_conv(voltage));
+	inc_samp_val = 1;
+}
+
+
+
+
+
+
+
+
+/**
+  * @brief System Clock Configuration
+  * @retval None
+  */
+void SystemClock_Config(void)
+{
+  RCC_OscInitTypeDef RCC_OscInitStruct = {0};
+  RCC_ClkInitTypeDef RCC_ClkInitStruct = {0};
+
+  /** Configure the main internal regulator output voltage
+  */
+  if (HAL_PWREx_ControlVoltageScaling(PWR_REGULATOR_VOLTAGE_SCALE1) != HAL_OK)
+  {
+    Error_Handler();
+  }
+
+  /** Initializes the RCC Oscillators according to the specified parameters
+  * in the RCC_OscInitTypeDef structure.
+  */
+  RCC_OscInitStruct.OscillatorType = RCC_OSCILLATORTYPE_HSI;
+  RCC_OscInitStruct.HSIState = RCC_HSI_ON;
+  RCC_OscInitStruct.HSICalibrationValue = RCC_HSICALIBRATION_DEFAULT;
+  RCC_OscInitStruct.PLL.PLLState = RCC_PLL_ON;
+  RCC_OscInitStruct.PLL.PLLSource = RCC_PLLSOURCE_HSI;
+  RCC_OscInitStruct.PLL.PLLM = 1;
+  RCC_OscInitStruct.PLL.PLLN = 10;
+  RCC_OscInitStruct.PLL.PLLP = RCC_PLLP_DIV7;
+  RCC_OscInitStruct.PLL.PLLQ = RCC_PLLQ_DIV2;
+  RCC_OscInitStruct.PLL.PLLR = RCC_PLLR_DIV2;
+  if (HAL_RCC_OscConfig(&RCC_OscInitStruct) != HAL_OK)
+  {
+    Error_Handler();
+  }
+
+  /** Initializes the CPU, AHB and APB buses clocks
+  */
+  RCC_ClkInitStruct.ClockType = RCC_CLOCKTYPE_HCLK|RCC_CLOCKTYPE_SYSCLK
+                              |RCC_CLOCKTYPE_PCLK1|RCC_CLOCKTYPE_PCLK2;
+  RCC_ClkInitStruct.SYSCLKSource = RCC_SYSCLKSOURCE_PLLCLK;
+  RCC_ClkInitStruct.AHBCLKDivider = RCC_SYSCLK_DIV1;
+  RCC_ClkInitStruct.APB1CLKDivider = RCC_HCLK_DIV1;
+  RCC_ClkInitStruct.APB2CLKDivider = RCC_HCLK_DIV1;
+
+  if (HAL_RCC_ClockConfig(&RCC_ClkInitStruct, FLASH_LATENCY_4) != HAL_OK)
+  {
+    Error_Handler();
+  }
+}
+
+/**
+  * @brief SPI2 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_SPI2_Init(void)
+{
+
+  /* USER CODE BEGIN SPI2_Init 0 */
+
+  /* USER CODE END SPI2_Init 0 */
+
+  /* USER CODE BEGIN SPI2_Init 1 */
+
+  /* USER CODE END SPI2_Init 1 */
+  /* SPI2 parameter configuration*/
+  hspi2.Instance = SPI2;
+  hspi2.Init.Mode = SPI_MODE_MASTER;
+  hspi2.Init.Direction = SPI_DIRECTION_2LINES;
+  hspi2.Init.DataSize = SPI_DATASIZE_16BIT;
+  hspi2.Init.CLKPolarity = SPI_POLARITY_LOW;
+  hspi2.Init.CLKPhase = SPI_PHASE_1EDGE;
+  hspi2.Init.NSS = SPI_NSS_HARD_OUTPUT;
+  hspi2.Init.BaudRatePrescaler = SPI_BAUDRATEPRESCALER_2;
+  hspi2.Init.FirstBit = SPI_FIRSTBIT_MSB;
+  hspi2.Init.TIMode = SPI_TIMODE_DISABLE;
+  hspi2.Init.CRCCalculation = SPI_CRCCALCULATION_DISABLE;
+  hspi2.Init.CRCPolynomial = 7;
+  hspi2.Init.CRCLength = SPI_CRC_LENGTH_DATASIZE;
+  hspi2.Init.NSSPMode = SPI_NSS_PULSE_ENABLE;
+  if (HAL_SPI_Init(&hspi2) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN SPI2_Init 2 */
+
+  /* USER CODE END SPI2_Init 2 */
+
+}
+
+/**
+  * @brief USART2 Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_USART2_UART_Init(void)
+{
+
+  /* USER CODE BEGIN USART2_Init 0 */
+
+  /* USER CODE END USART2_Init 0 */
+
+  /* USER CODE BEGIN USART2_Init 1 */
+
+  /* USER CODE END USART2_Init 1 */
+  huart2.Instance = USART2;
+  huart2.Init.BaudRate = 115200;
+  huart2.Init.WordLength = UART_WORDLENGTH_8B;
+  huart2.Init.StopBits = UART_STOPBITS_1;
+  huart2.Init.Parity = UART_PARITY_NONE;
+  huart2.Init.Mode = UART_MODE_TX_RX;
+  huart2.Init.HwFlowCtl = UART_HWCONTROL_NONE;
+  huart2.Init.OverSampling = UART_OVERSAMPLING_16;
+  huart2.Init.OneBitSampling = UART_ONE_BIT_SAMPLE_DISABLE;
+  huart2.AdvancedInit.AdvFeatureInit = UART_ADVFEATURE_NO_INIT;
+  if (HAL_UART_Init(&huart2) != HAL_OK)
+  {
+    Error_Handler();
+  }
+  /* USER CODE BEGIN USART2_Init 2 */
+
+  /* USER CODE END USART2_Init 2 */
+
+}
+
+/**
+  * @brief GPIO Initialization Function
+  * @param None
+  * @retval None
+  */
+static void MX_GPIO_Init(void)
+{
+  GPIO_InitTypeDef GPIO_InitStruct = {0};
+/* USER CODE BEGIN MX_GPIO_Init_1 */
+/* USER CODE END MX_GPIO_Init_1 */
+
+  /* GPIO Ports Clock Enable */
+  __HAL_RCC_GPIOC_CLK_ENABLE();
+  __HAL_RCC_GPIOH_CLK_ENABLE();
+  __HAL_RCC_GPIOA_CLK_ENABLE();
+  __HAL_RCC_GPIOB_CLK_ENABLE();
+
+  /*Configure GPIO pin : B1_Pin */
+  GPIO_InitStruct.Pin = B1_Pin;
+  GPIO_InitStruct.Mode = GPIO_MODE_IT_FALLING;
+  GPIO_InitStruct.Pull = GPIO_NOPULL;
+  HAL_GPIO_Init(B1_GPIO_Port, &GPIO_InitStruct);
+
+/* USER CODE BEGIN MX_GPIO_Init_2 */
+/* USER CODE END MX_GPIO_Init_2 */
+}
+
+/* USER CODE BEGIN 4 */
+
+/* USER CODE END 4 */
+
+/**
+  * @brief  This function is executed in case of error occurrence.
+  * @retval None
+  */
+void Error_Handler(void)
+{
+  /* USER CODE BEGIN Error_Handler_Debug */
+  /* User can add his own implementation to report the HAL error return state */
+  __disable_irq();
+  while (1)
+  {
+  }
+  /* USER CODE END Error_Handler_Debug */
+}
+
+#ifdef  USE_FULL_ASSERT
+/**
+  * @brief  Reports the name of the source file and the source line number
+  *         where the assert_param error has occurred.
+  * @param  file: pointer to the source file name
+  * @param  line: assert_param error line source number
+  * @retval None
+  */
+void assert_failed(uint8_t *file, uint32_t line)
+{
+  /* USER CODE BEGIN 6 */
+  /* User can add his own implementation to report the file name and line number,
+     ex: printf("Wrong parameters value: file %s on line %d\r\n", file, line) */
+  /* USER CODE END 6 */
+}
+#endif /* USE_FULL_ASSERT */
