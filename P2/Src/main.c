@@ -18,11 +18,11 @@ static void MX_USART2_UART_Init(void);
 static void MX_SPI2_Init(void);
 
 char val = 0;
-char wave = '7';
+char wave = '6';
 char com = 0;
 uint16_t voltage = 0;
 int delay = 650;
-int freq = 100;
+float freq = 100;
 int duty_cycle = 50; // percent
 int samp_per_cycle = SPS / 100;
 float sin_increment = 360 / (SPS / 100);
@@ -97,16 +97,16 @@ int main(void)
 			  	  		  	  freq = 100;
 			  	              break;
 			  	  	  case '2': // 200Hz
-			  	  		  	  freq = 200;
+			  	  		  	  freq = 195;
 			  	  		  	  break;
 			  	  	  case '3': // 300Hz
-			  	  		  	  freq = 300;
+			  	  		  	  freq = 290;
 			   	  		  	  break;
 			  	      case '4': // 400Hz
-			  	    	  	  freq = 400;
+			  	    	  	  freq = 387;
 			  	  	  	  	  break;
 			  	      case '5': // 500Hz
-			  	    	  	  freq = 500;
+			  	    	  	  freq = 490;
 			  		  	  	  break;
 			          case '*': // decrease duty cycle
 			        	  	  if(duty_cycle > 10){duty_cycle = duty_cycle - 10;}
@@ -122,7 +122,7 @@ int main(void)
 							  duty_cycle = 50;
 			  }
 
-			  samp_per_cycle = SPS / freq;
+			  samp_per_cycle = round(SPS / freq);
 			  sin_increment = SIN_ACC / samp_per_cycle;
 			  ramp_increment = 3000 / samp_per_cycle;
 			  triangle_increment = 3000 / samp_per_cycle * 2;
