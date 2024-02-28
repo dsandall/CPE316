@@ -16,6 +16,8 @@ void DAC_init(){	// ~CS: B12  ~LDAC: B1  SCLK: B10  MOSI: C3
 	pinMode('B', 1, 1); // set ~LDAC to output
 	digitalWrite('B', 1, 1); // set ~LDAC to high
 	RCC->APB1ENR1 |= RCC_APB1ENR1_SPI2EN;
+	RCC->AHB2ENR |= RCC_AHB2ENR_GPIOBEN | RCC_AHB2ENR_GPIOCEN;
+
 
 	// Configure SCK pin (PB10) as alternate function mode
 	GPIOB->MODER &= ~(GPIO_MODER_MODE10_Msk);
@@ -39,7 +41,7 @@ void DAC_init(){	// ~CS: B12  ~LDAC: B1  SCLK: B10  MOSI: C3
 	SPI2->CR1 = 0; // Disable SPI2
 	SPI2->CR1 = (SPI_CR1_CRCL | SPI_CR1_MSTR | SPI_CR1_SSM | SPI_CR1_SSI); // Master mode, Software slave management, Internal slave select  | SPI_CR1_SSM | SPI_CR1_SSI
 	SPI2->CR2 = 0; // Default configuration
-	SPI2->CR2 = (SPI_CR2_NSSP | SPI_CR2_SSOE);
+	SPI2->CR2 = (SPI_CR2_NSSP | SPI_CR2_SSOE | (0xF << SPI_CR2_DS_Pos));
 
 	SPI2->CR2 &= ~SPI_CR2_DS_Msk; // Clear data frame size bits
 	SPI2->CR2 |= (0b1111 << SPI_CR2_DS_Pos); // 16-bit data frame size

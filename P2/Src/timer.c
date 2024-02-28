@@ -10,8 +10,8 @@
 
 
 //PAGE 1084 of big book
-const int prescale = 48;
-const int autoreload = 160;
+const int prescale = 39; //larger numbers mean smaller frequency, means larger period
+const int autoreload = 99; //larger numbers mean smaller frequency, means larger period
 
 
 void TimerInit(void){
